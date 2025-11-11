@@ -31,49 +31,84 @@ const ERROR_MESSAGES = [
   "Data Mismatch: Booklet ID 42 does not match existing session data. Check student name.",
 ];
 
-// PROGRAMS data with specific RGB colors for borders and selected state
+// PROGRAMS data updated to have 6 workshops. Workshop 3 and 6 include (Reflection Day).
 const PROGRAMS = [
     { 
         id: 'textile', 
         name: 'Textile', 
-        color: 'rgb(251, 202, 48)', // R 251 G 202 B 48
+        color: 'rgb(251, 202, 48)', // R 251 G 202 B 48 (Bright Yellow)
         imagePath: '/Textile.png', 
-        workshops: ['W1: Intro to Fabric', 'W2: Simple Stitching', 'W3: Pattern Making', 'W4: Dyes & Prints', 'W5: Final Project'] 
+        workshops: [
+            'W1: Intro to Fabric', 
+            'W2: Simple Stitching', 
+            'W3: Pattern Making (Reflection Day)', 
+            'W4: Dyes & Prints', 
+            'W5: Advanced Techniques',
+            'W6: Final Project (Reflection Day)'
+        ] 
     },
     { 
         id: 'metal', 
         name: 'Metal Work', 
         color: 'rgb(0, 124, 177)', // R 0 G 124 B 177
         imagePath: '/Metal.png', 
-        workshops: ['W1: Sheet Metal', 'W2: Bending', 'W3: Soldering', 'W4: Safety', 'W5: Final Project'] 
+        workshops: [
+            'W1: Sheet Metal', 
+            'W2: Bending', 
+            'W3: Soldering & Brazing (Reflection Day)', 
+            'W4: Safety & Cleanup', 
+            'W5: Finishing & Polishing',
+            'W6: Final Project (Reflection Day)'
+        ] 
     },
     { 
         id: 'ceramics', 
         name: 'Ceramics', 
         color: 'rgb(2, 131, 81)', // R 2 G 131 B 81
         imagePath: '/ceramics.png', 
-        workshops: ['W1: Hand Building', 'W2: Wheel Throwing', 'W3: Glazing Basics', 'W4: Firing', 'W5: Final Project'] 
+        workshops: [
+            'W1: Hand Building', 
+            'W2: Wheel Throwing', 
+            'W3: Glazing Basics (Reflection Day)', 
+            'W4: Firing & Kiln Prep', 
+            'W5: Advanced Forms',
+            'W6: Final Project (Reflection Day)'
+        ] 
     },
     { 
         id: 'wood', 
         name: 'Wood work', 
         color: 'rgb(168, 83, 119)', // R 168 G 83 B 119
         imagePath: '/wood.png', 
-        workshops: ['W1: Intro to Wood', 'W2: Simple Joinery', 'W3: Advanced Cuts', 'W4: Finishes', 'W5: Final Project'] 
+        workshops: [
+            'W1: Intro to Wood', 
+            'W2: Simple Joinery', 
+            'W3: Advanced Cuts (Reflection Day)', 
+            'W4: Finishes & Stains', 
+            'W5: Tool Maintenance',
+            'W6: Final Project (Reflection Day)'
+        ] 
     },
     { 
         id: 'fablab', 
         name: 'FABLAB', 
         color: 'rgb(237, 107, 34)', // R 237 G 107 B 34
         imagePath: '/fablab.png', 
-        workshops: ['W1: 3D Printing', 'W2: Laser Cutting', 'W3: CAD Basics', 'W4: Electronics', 'W5: Final Project'] 
+        workshops: [
+            'W1: 3D Printing', 
+            'W2: Laser Cutting', 
+            'W3: CAD Basics (Reflection Day)', 
+            'W4: Electronics & Sensors', 
+            'W5: CNC Routing',
+            'W6: Final Project (Reflection Day)'
+        ] 
     },
 ];
 
 const StudentData = {
     programId: 'metal',
     programName: 'Metal Work',
-    selectedWorkshop: 'W2: Bending',
+    selectedWorkshop: 'W2: Bending', // Still a valid workshop title
     reflection: 'Learning to bend a really thick piece of sheet metal was hard, but I succeeded after three tries!',
     stickers: 5,
 };
@@ -231,6 +266,19 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({ navigate, programId }) 
     const [selectedWorkshop, setSelectedWorkshop] = useState(defaultWorkshop);
 
     const workshopColor = program.color; // e.g., rgb(0, 124, 177)
+    
+    // --- ACCESSIBILITY FIX START ---
+    // Check if the current program is 'textile' (bright yellow background)
+    const isTextile = program.id === 'textile';
+    
+    // Set text colors dynamically for contrast
+    const selectedTextColorClass = isTextile ? 'text-gray-900' : 'text-white';
+    const selectedSubtextColorClass = isTextile ? 'text-gray-800' : 'text-white/90';
+    
+    // Set reflection box overlay dynamically for contrast
+    const reflectionBoxOverlayClass = isTextile ? 'bg-black/10 border-black/30' : 'bg-white/30 border-white/50 backdrop-blur-sm';
+    const reflectionTextColorClass = isTextile ? 'text-gray-900' : 'text-white';
+    // --- ACCESSIBILITY FIX END ---
 
     return (
         <div className="p-6 h-full relative">
@@ -251,21 +299,23 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({ navigate, programId }) 
                         key={workshop} 
                         className={`p-4 rounded-xl border-4 transition-all duration-150 cursor-pointer 
                             ${workshop === selectedWorkshop 
-                                ? 'text-white shadow-xl scale-[1.01]' // White text when background is colored
+                                // Apply the dynamic text color class when selected
+                                ? selectedTextColorClass + ' shadow-xl scale-[1.01]' 
                                 : 'bg-white border-gray-100 shadow-md hover:shadow-lg hover:border-gray-300'
                             }`}
                         // Apply specific program color to background and border for selected state
                         style={workshop === selectedWorkshop ? {backgroundColor: workshopColor, borderColor: workshopColor} : {}}
                         onClick={() => setSelectedWorkshop(workshop)}
                     >
-                        {/* Ensure text color is white for the selected (colored) state */}
-                        <h3 className={`text-xl font-bold ${workshop === selectedWorkshop ? 'text-white' : 'text-gray-800'}`}>{workshop}</h3>
-                        <p className={`text-sm mt-1 ${workshop === selectedWorkshop ? 'text-white/90' : 'text-gray-600'}`}>
+                        {/* Use dynamic classes for text color */}
+                        <h3 className={`text-xl font-bold ${workshop === selectedWorkshop ? selectedTextColorClass : 'text-gray-800'}`}>{workshop}</h3>
+                        <p className={`text-sm mt-1 ${workshop === selectedWorkshop ? selectedSubtextColorClass : 'text-gray-600'}`}>
                             {index === 1 && workshop === selectedWorkshop ? 'Description: Detailed instructions for this workshop are included here.' : 'Tap to select this workshop.'}
                         </p>
                         {workshop === selectedWorkshop && (
-                             <div className="mt-3 p-3 bg-white/30 backdrop-blur-sm rounded-lg border border-white/50 shadow-inner">
-                                <p className="font-semibold text-white mb-2">Student Reflection:</p>
+                            // Use dynamic class for reflection box overlay and text
+                             <div className={`mt-3 p-3 ${reflectionBoxOverlayClass} rounded-lg border shadow-inner`}>
+                                <p className={`font-semibold ${reflectionTextColorClass} mb-2`}>Student Reflection:</p>
                                 <div 
                                     className="bg-white text-gray-900 p-3 rounded-lg cursor-pointer shadow-md min-h-[50px] transition hover:bg-gray-50"
                                     onClick={() => setIsInputOpen(true)}
@@ -320,9 +370,10 @@ interface ScanningPageProps {
   errorMessage: string;
   handleAction: (newState: (typeof SCAN_STATE)[keyof typeof SCAN_STATE]) => void;
   navigate: (path: string) => void;
+  programId: string; // ADDED: programId is required to navigate back correctly
 }
 
-const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, handleAction, navigate }) => {
+const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, handleAction, navigate, programId }) => {
   const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
@@ -364,6 +415,13 @@ const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, ha
   } else if (scanState === SCAN_STATE.IDLE) {
     boundingBoxColor = 'border-white';
   }
+  
+  // Handler for going back to the Workshop Detail page
+  const handleBack = () => {
+      // Navigate back to the workshop detail page using the current programId
+      navigate(`/workshop/${programId}`);
+  };
+
 
   // Bounding Box (Visible in IDLE/PROCESSING)
   const BoundingBox = () => (
@@ -386,6 +444,18 @@ const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, ha
 
   return (
     <div className="relative w-full h-full min-h-[500px] flex items-center justify-center bg-gray-900 rounded-3xl overflow-hidden shadow-2xl">
+      
+      {/* Back Button (Only visible when IDLE) */}
+      {scanState === SCAN_STATE.IDLE && (
+          <button 
+              onClick={handleBack}
+              className="absolute top-4 left-4 p-3 bg-black/50 text-white rounded-full hover:bg-black/70 transition-all z-10 flex items-center shadow-lg"
+              aria-label="Go back to workshop details"
+          >
+              <ArrowLeft className="h-5 w-5 mr-1" /> 
+          </button>
+      )}
+
       {/* Background (Simulated Camera Feed) */}
       <CameraView />
       
@@ -501,7 +571,8 @@ const App = () => {
         content = <WorkshopDetail navigate={navigate} programId={pathParts[2] || programId} />;
         break;
     case 'scan':
-        content = <ScanningPage scanState={scanState} errorMessage={errorMessage} handleAction={handleUserAction} navigate={navigate} />;
+        // Pass the current programId to the ScanningPage component
+        content = <ScanningPage scanState={scanState} errorMessage={errorMessage} handleAction={handleUserAction} navigate={navigate} programId={programId} />;
         break;
     case '': 
     default:
