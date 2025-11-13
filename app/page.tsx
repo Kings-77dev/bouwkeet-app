@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/static-components */
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Camera, CheckCircle, XCircle, Loader2, Zap, ArrowLeft, Send, Search, Settings } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Camera, CheckCircle, XCircle, Loader2, Zap, ArrowLeft, Send, Search, Settings, Users, Star } from 'lucide-react';
 
 // --- CUSTOM LOGO COMPONENT ---
 // Replaces the generic icon with the provided SVG path data
@@ -31,7 +32,7 @@ const ERROR_MESSAGES = [
   "Data Mismatch: Booklet ID 42 does not match existing session data. Check student name.",
 ];
 
-// PROGRAMS data updated to have 6 workshops. Workshop 3 and 6 include (Reflection Day).
+// PROGRAMS data
 const PROGRAMS = [
     { 
         id: 'textile', 
@@ -105,21 +106,120 @@ const PROGRAMS = [
     },
 ];
 
+// Simulated Student Data for Search functionality and session context
+const STUDENTS_DATA = [
+    { id: 's001', name: 'Alina Koster', programId: 'metal', programName: 'Metal Work' },
+    { id: 's002', name: 'Ben Visscher', programId: 'fablab', programName: 'FABLAB' },
+    { id: 's003', name: 'Carla De Vries', programId: 'textile', programName: 'Textile' },
+    { id: 's004', name: 'Dirk Bakker', programId: 'wood', programName: 'Wood work' },
+    { id: 's005', name: 'Elin Jansen', programId: 'ceramics', programName: 'Ceramics' },
+    { id: 's006', name: 'Fleur Wessels', programId: 'metal', programName: 'Metal Work' },
+];
+
 const StudentData = {
     programId: 'metal',
     programName: 'Metal Work',
-    selectedWorkshop: 'W2: Bending', // Still a valid workshop title
+    selectedWorkshop: 'W2: Bending', 
     reflection: 'Learning to bend a really thick piece of sheet metal was hard, but I succeeded after three tries!',
     stickers: 5,
 };
 
 // --- UTILITY COMPONENTS ---
 
-const CameraView = () => (
-  <div className="absolute inset-0 bg-gray-900 bg-cover bg-center" style={{ backgroundImage: "url('https://placehold.co/800x600/1f2937/ffffff?text=Align+Booklet+Here')" }}>
-    <div className="absolute inset-0 bg-black opacity-40"></div>
-  </div>
-);
+/**
+ * Component to handle and display the live camera stream.
+ * It replaces the static placeholder background image.
+ */
+const CameraStream = ({ videoRef, onError }: { videoRef: React.RefObject<HTMLVideoElement | null>, onError: (message: string) => void }) => {
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    const videoElement = videoRef.current;
+
+    const startCamera = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError("Camera access not supported by this browser.");
+        onError("Camera access not supported by this browser.");
+        return;
+      }
+
+      try {
+        // 1. Get the stream
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment' } 
+        });
+
+        if (videoElement) {
+          videoElement.srcObject = stream;
+          
+          // 2. Attempt to play the video, robustly handling the AbortError
+          try {
+            await videoElement.play();
+            setIsCameraActive(true);
+            setCameraError(null);
+          } catch (e: any) {
+            // Handle the specific 'AbortError' which often happens on fast re-renders/navigation.
+            // We ignore it, as the component's state/navigation is likely causing it, 
+            // and the stream usually attaches correctly anyway.
+            if (e.name === 'AbortError') {
+                console.warn("Video playback was interrupted by a new load request (AbortError). This is often safe to ignore.");
+                setIsCameraActive(true); // Assume the stream attached even if play was aborted
+                setCameraError(null);
+            } else {
+                throw e; // Re-throw other errors
+            }
+          }
+        }
+      } catch (err: any) {
+        // 3. Handle general camera access errors
+        const errorMsg = err.name === 'NotAllowedError' 
+            ? 'Camera permission denied. Please allow camera access in your browser settings.'
+            : 'Failed to access camera. Is it already in use?';
+        setCameraError(errorMsg);
+        onError(errorMsg);
+        console.error("Camera access error:", err);
+      }
+    };
+
+    startCamera();
+
+    // Cleanup function: Stop the camera stream when the component unmounts
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [videoRef, onError]);
+  
+  // Render a placeholder or error message if the camera isn't active
+  if (cameraError) {
+      return (
+          <div className="absolute inset-0 bg-red-900 flex items-center justify-center p-4">
+              <div className="text-center text-white p-4 bg-black/70 rounded-lg">
+                  <XCircle className="h-8 w-8 text-red-400 mx-auto mb-2" />
+                  <p className="font-bold mb-1">Camera Error</p>
+                  <p className="text-sm">{cameraError}</p>
+              </div>
+          </div>
+      );
+  }
+
+  // Render the video stream (hidden by default, only the video itself is visible)
+  return (
+    <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
+        // The background color will show if the stream hasn't started yet
+        style={{ backgroundColor: isCameraActive ? 'transparent' : '#1f2937' }}
+    />
+  );
+};
+
 
 // --- 1. WIZARD CONTROL PANEL (Hidden from User) ---
 
@@ -140,7 +240,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ setScanState, setErrorMessa
   const triggerSuccess = () => {
     navigate('/scan');
     setScanState(SCAN_STATE.SUCCESS);
-    setTimeout(() => setScanState(SCAN_STATE.IDLE), 3000);
+    // Note: The auto-reset is now handled by the ScanningPage's useEffect
   };
 
   const triggerError = () => {
@@ -206,51 +306,108 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ setScanState, setErrorMessa
   );
 };
 
-// --- 2. SCREENS ---
-
 // Screen 1: Program Selector
 interface ProgramSelectorProps {
     navigate: (path: string) => void;
 }
-const ProgramSelector: React.FC<ProgramSelectorProps> = ({ navigate }) => (
-    <div className="p-6">
-        <h2 className="text-3xl font-extrabold mb-8 text-gray-900 border-b-2 pb-2" style={{borderColor: PRIMARY_COLOR}}>Select Workshop</h2>
-        {/* Adjusted grid for better mobile experience and larger targets */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-            {PROGRAMS.map(program => (
+const ProgramSelector: React.FC<ProgramSelectorProps> = ({ navigate }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // Filter students based on search term (case-insensitive)
+    const filteredStudents = STUDENTS_DATA.filter(student =>
+        student.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    // Select the first result if there is one and the search term is not empty
+    const studentResult = searchTerm.trim() !== '' && filteredStudents.length > 0 
+        ? filteredStudents[0] 
+        : null;
+
+    return (
+        <div className="p-6">
+            <h2 className="text-3xl font-extrabold mb-4 text-gray-900 border-b-2 pb-2" style={{borderColor: PRIMARY_COLOR}}>
+                Select Workshop / Find Student
+            </h2>
+
+            {/* Student Search Input */}
+            <div className="relative mb-8">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                    type="text"
+                    placeholder="Search by student name (e.g., Alina, Ben)"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full p-3 pl-10 border-2 border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 shadow-md"
+                />
+            </div>
+            
+            {/* Conditional Content based on Search */}
+            {studentResult ? (
+                // 1. Student Found Result Card
                 <div 
-                    key={program.id}
-                    onClick={() => navigate(`/workshop/${program.id}`)}
-                    className="group cursor-pointer transform hover:scale-[1.03] transition-all duration-300"
+                    className="p-6 rounded-2xl shadow-xl border-4 cursor-pointer transition transform hover:scale-[1.01]"
+                    style={{ 
+                        borderColor: PRIMARY_COLOR, 
+                        backgroundColor: '#f7f7f7' 
+                    }}
+                    onClick={() => navigate(`/workshop/${studentResult.programId}`)}
                 >
-                    {/* Image Tile (Border color is specific to the program) */}
-                    <div
-                        style={{ 
-                            backgroundImage: `url(${program.imagePath})`, 
-                            borderColor: program.color, 
-                            borderWidth: '3px' 
-                        }}
-                        className={`
-                            relative h-32 sm:h-36 rounded-xl shadow-xl 
-                            bg-cover bg-center overflow-hidden border-2 border-transparent 
-                            group-hover:shadow-2xl group-hover:shadow-gray-300 transition
-                        `}
-                    >
-                        {/* Subtle overlay for image consistency */}
-                         <div className="absolute inset-0 bg-black opacity-10 group-hover:opacity-20 transition duration-300 rounded-xl"></div>
+                    <div className="flex items-center mb-4">
+                        <Users className="h-8 w-8 text-indigo-600 mr-3" />
+                        <h3 className="text-2xl font-bold text-gray-800">{studentResult.name}</h3>
                     </div>
-                    {/* Program Name UNDER the tile */}
-                    <p className="mt-2 text-center text-lg font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">
-                        {program.name}
-                    </p>
+                    <p className="text-lg text-gray-700 mb-4">Current Program: <strong className="text-indigo-600">{studentResult.programName}</strong></p>
+                    <button
+                        className="w-full p-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center"
+                    >
+                        <Star className="h-5 w-5 mr-2 fill-white" /> Go to {studentResult.programName} Workshops
+                    </button>
+                    <p className="text-sm text-center text-gray-500 mt-3">Clicking this will automatically select their program.</p>
                 </div>
-            ))}
+
+            ) : searchTerm.trim() !== '' && filteredStudents.length === 0 ? (
+                // 2. No Student Found Message
+                <div className="p-6 text-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 mb-8">
+                    <XCircle className="h-8 w-8 text-red-500 mx-auto mb-3" />
+                    <p className="text-xl font-semibold text-red-700">No Student Found</p>
+                    <p className="text-gray-600 mt-1">Please check the spelling or select a program below.</p>
+                </div>
+            ) : (
+                // 3. Program Tiles (Default View)
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                    {PROGRAMS.map(program => (
+                        <div 
+                            key={program.id}
+                            onClick={() => navigate(`/workshop/${program.id}`)}
+                            className="group cursor-pointer transform hover:scale-[1.03] transition-all duration-300"
+                        >
+                            {/* Image Tile (Border color is specific to the program) */}
+                            <div
+                                style={{ 
+                                    backgroundImage: `url(${program.imagePath})`, 
+                                    borderColor: program.color, 
+                                    borderWidth: '3px' 
+                                }}
+                                className={`
+                                    relative h-32 sm:h-36 rounded-xl shadow-xl 
+                                    bg-cover bg-center overflow-hidden border-2 border-transparent 
+                                    group-hover:shadow-2xl group-hover:shadow-gray-300 transition
+                                `}
+                            >
+                                {/* Subtle overlay for image consistency */}
+                                 <div className="absolute inset-0 bg-black opacity-10 group-hover:opacity-20 transition duration-300 rounded-xl"></div>
+                            </div>
+                            {/* Program Name UNDER the tile */}
+                            <p className="mt-2 text-center text-lg font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">
+                                {program.name}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
-        <div className="mt-10 text-center text-gray-700 text-sm p-4 rounded-xl border shadow-inner" style={{backgroundColor: PRIMARY_COLOR, borderColor: 'rgb(161, 187, 189)'}}>
-            <Search className="inline-block h-4 w-4 mr-1"/> Search Function: Use the dashboard search bar to find a student.
-        </div>
-    </div>
-);
+    );
+};
 
 // Screen 2: Workshop Detail & Reflection Input
 interface WorkshopDetailProps {
@@ -258,14 +415,17 @@ interface WorkshopDetailProps {
     programId?: string;
 }
 const WorkshopDetail: React.FC<WorkshopDetailProps> = ({ navigate, programId }) => {
-    const program = PROGRAMS.find(p => p.id === programId) || PROGRAMS[0];
+    // Lookup the program based on ID, defaulting to the first if not found (robustness)
+    const program = PROGRAMS.find(p => p.id === programId) || PROGRAMS[0]; 
+    
     const [reflectionText, setReflectionText] = useState(StudentData.reflection);
     const [isInputOpen, setIsInputOpen] = useState(false);
     
+    // Set the selected workshop based on the context (defaulting to the first workshop if the program is different)
     const defaultWorkshop = program.id === StudentData.programId ? StudentData.selectedWorkshop : program.workshops[0];
     const [selectedWorkshop, setSelectedWorkshop] = useState(defaultWorkshop);
 
-    const workshopColor = program.color; // e.g., rgb(0, 124, 177)
+    const workshopColor = program.color; 
     
     // --- ACCESSIBILITY FIX START ---
     // Check if the current program is 'textile' (bright yellow background)
@@ -370,11 +530,20 @@ interface ScanningPageProps {
   errorMessage: string;
   handleAction: (newState: (typeof SCAN_STATE)[keyof typeof SCAN_STATE]) => void;
   navigate: (path: string) => void;
-  programId: string; // ADDED: programId is required to navigate back correctly
+  programId: string;
 }
 
 const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, handleAction, navigate, programId }) => {
   const [showPopup, setShowPopup] = useState(false);
+  const [cameraPermissionError, setCameraPermissionError] = useState('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Function to handle camera stream errors
+  const handleCameraError = useCallback((message: string) => {
+      setCameraPermissionError(message);
+      // Optional: You could transition scanState to ERROR here if the camera is critical
+      // e.g., if (scanState === SCAN_STATE.IDLE) setScanState(SCAN_STATE.ERROR);
+  }, []);
 
   useEffect(() => {
     let showTimer: number | undefined;
@@ -425,27 +594,39 @@ const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, ha
 
   // Bounding Box (Visible in IDLE/PROCESSING)
   const BoundingBox = () => (
-    <div className="relative w-4/5 h-4/5 max-w-lg max-h-lg flex flex-col items-center justify-center">
-      <div className={`w-full h-full border-4 ${boundingBoxColor} rounded-xl transition-all duration-500 flex items-center justify-center`}>
-        {scanState === SCAN_STATE.IDLE && (
-            <button 
-                onClick={() => handleAction(SCAN_STATE.PROCESSING)}
-                className="p-4 text-gray-900 font-black text-xl rounded-full shadow-2xl hover:bg-white/90 transition flex items-center transform hover:scale-105"
-                style={{backgroundColor: PRIMARY_COLOR, boxShadow: `0 10px 15px -3px ${PRIMARY_COLOR}80`}}
-            >
-                <Camera className="mr-2 h-6 w-6" /> Tap to Scan
-            </button>
-        )}
-        {scanState === SCAN_STATE.PROCESSING && overlayContent}
-      </div>
-      <p className="mt-4 text-white text-xl font-black drop-shadow-lg p-2 bg-black bg-opacity-50 rounded-lg">{boundingBoxText}</p>
+    // Outer div maintains position over the camera feed
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {/* Inner div defines the scan area and border */}
+        <div className="relative w-4/5 h-4/5 max-w-lg max-h-lg flex flex-col items-center justify-center pointer-events-auto">
+            <div className={`w-full h-full border-4 ${boundingBoxColor} rounded-xl transition-all duration-500 flex items-center justify-center`}>
+                
+                {/* Content inside the bounding box */}
+                {scanState === SCAN_STATE.IDLE && (
+                    <button 
+                        onClick={() => handleAction(SCAN_STATE.PROCESSING)}
+                        className="p-4 text-gray-900 font-black text-xl rounded-full shadow-2xl hover:bg-white/90 transition flex items-center transform hover:scale-105 pointer-events-auto"
+                        style={{backgroundColor: PRIMARY_COLOR, boxShadow: `0 10px 15px -3px ${PRIMARY_COLOR}80`}}
+                        disabled={!!cameraPermissionError}
+                    >
+                        <Camera className="mr-2 h-6 w-6" /> 
+                        {cameraPermissionError ? "Camera Blocked" : "Tap to Scan"}
+                    </button>
+                )}
+                {scanState === SCAN_STATE.PROCESSING && overlayContent}
+            </div>
+            
+            <p className="mt-4 text-white text-xl font-black drop-shadow-lg p-2 bg-black bg-opacity-50 rounded-lg">{boundingBoxText}</p>
+        </div>
     </div>
   );
 
   return (
     <div className="relative w-full h-full min-h-[500px] flex items-center justify-center bg-gray-900 rounded-3xl overflow-hidden shadow-2xl">
       
-      {/* Back Button (Only visible when IDLE) */}
+      {/* 1. Background (Live Camera Feed) */}
+      <CameraStream videoRef={videoRef} onError={handleCameraError} />
+
+      {/* 2. Back Button (Only visible when IDLE) */}
       {scanState === SCAN_STATE.IDLE && (
           <button 
               onClick={handleBack}
@@ -456,15 +637,12 @@ const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, ha
           </button>
       )}
 
-      {/* Background (Simulated Camera Feed) */}
-      <CameraView />
-      
-      {/* Bounding Box Overlay for IDLE and PROCESSING */}
+      {/* 3. Bounding Box and Scan Button Overlay */}
       {scanState !== SCAN_STATE.SUCCESS && scanState !== SCAN_STATE.ERROR && <BoundingBox />}
 
-      {/* SUCCESS POPUP (High-Fi version) */}
+      {/* 4. SUCCESS POPUP (High-Fi version) */}
       {scanState === SCAN_STATE.SUCCESS && showPopup && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-md bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-green-500 text-center animate-fade-in">
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-md bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-green-500 text-center animate-fade-in z-20">
           <CheckCircle className="text-green-500 h-16 w-16 mx-auto mb-4 animate-bounce-once" />
           <h1 className="text-2xl font-extrabold text-gray-800 mb-2">Scan Complete!</h1>
           <p className="text-gray-600">The reflection and stickers have been saved and synchronized.</p>
@@ -477,9 +655,9 @@ const ScanningPage: React.FC<ScanningPageProps> = ({ scanState, errorMessage, ha
         </div>
       )}
 
-      {/* ERROR POPUP (High-Fi version) */}
+      {/* 5. ERROR POPUP (High-Fi version) */}
       {scanState === SCAN_STATE.ERROR && showPopup && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-md bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-red-500 text-center animate-fade-in">
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-md bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-red-500 text-center animate-fade-in z-20">
           <XCircle className="text-red-500 h-16 w-16 mx-auto mb-4" />
           <h1 className="text-2xl font-extrabold text-gray-800 mb-3">Scan Failed!</h1>
           <p className="text-red-700 font-medium text-lg mb-6 border-b pb-4 border-red-100">
@@ -550,8 +728,10 @@ const App = () => {
     if (newState === SCAN_STATE.PROCESSING) {
       setScanState(SCAN_STATE.PROCESSING);
 
+      // Simulate the scan process taking 4 seconds
       const timer: number = window.setTimeout(() => {
         setScanState(currentState =>
+          // Only transition to SUCCESS if we are still processing (not manually errored/succeeded)
           currentState === SCAN_STATE.PROCESSING ? SCAN_STATE.SUCCESS : currentState
         );
       }, 4000);
@@ -583,16 +763,15 @@ const App = () => {
   return (
     <div className="p-4 md:p-8 bg-white min-h-screen font-sans antialiased">
       
-      {/* Header Bar: Changed back to a light background (bg-gray-100) to show the black logo. */}
+      {/* Header Bar */}
       <div className="flex justify-between items-center bg-gray-100 p-4 rounded-xl shadow-lg border-b-4 mb-6" style={{borderColor: PRIMARY_COLOR}}>
         <h1 className="text-2xl font-black text-gray-900 flex items-center">
-            {/* Custom Logo Component is now black */}
             <LogoIcon className="h-7 w-7 mr-2 text-black" /> 
             <span className="hidden sm:inline">BOUWKEET TRACKER</span>
             <span className="sm:hidden">TRACKER</span>
         </h1>
         <div className="flex items-center space-x-3">
-            <span className="text-sm font-bold text-gray-700 hidden sm:inline">Student ID: 42</span>
+            <span className="text-sm font-bold text-gray-700 whitespace-nowrap">Student ID: 42</span>
             <button className="text-gray-700 hover:text-indigo-600 transition p-2 rounded-full hover:bg-gray-200"><Settings className="h-5 w-5" /></button>
         </div>
       </div>
