@@ -401,7 +401,7 @@ const ProgramSelector: React.FC<ProgramSelectorProps> = ({ navigate }) => {
   );
 };
 
-// Screen 2: Workshop Detail & Description View (FIXED FOR FLOATING BUTTON)
+// Screen 2: Workshop Detail & Description View
 interface WorkshopDetailProps {
   navigate: (path: string) => void;
   programId?: string;
@@ -441,10 +441,10 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
   };
 
   return (
-    // 1. Outer container for flex column layout to manage scroll and sticky footer
+    // FIX: Outer container for flex column layout to manage scroll and sticky footer
     <div className="h-full flex flex-col"> 
       
-      {/* 2. Scrollable Content Area (Header + List) */}
+      {/* Scrollable Content Area (Header + List) */}
       <div className="p-6 overflow-y-auto flex-grow"> 
           
           <button
@@ -520,10 +520,9 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
           </div>
       </div>
       
-      {/* 3. Floating/Sticky Footer Button Block - Always visible */}
+      {/* FIX: Floating/Sticky Footer Button Block - Always visible */}
       <div 
           className="p-6 pt-3 bg-gray-50 border-t border-gray-200 flex-shrink-0"
-          // Adding a shadow to clearly separate it from the scrollable content
           style={{boxShadow: "0 -4px 6px -1px rgb(0 0 0 / 0.1), 0 -2px 4px -2px rgb(0 0 0 / 0.05)"}}
       >
         <button
@@ -708,7 +707,7 @@ const ScanningPage: React.FC<ScanningPageProps> = ({
 }) => {
   const [showPopup, setShowPopup] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState("");
-  const [scanMode, setScanMode] = useState<keyof typeof SCAN_MODE>(SCAN_MODE.STICKERS); 
+  const [scanMode, setScanMode] = useState<(typeof SCAN_MODE)[keyof typeof SCAN_MODE]>(SCAN_MODE.STICKERS); 
   const timerRef = useRef<number | undefined>(undefined); 
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1046,7 +1045,8 @@ const App = () => {
           <span className="sm:hidden">TRACKER</span>
         </h1>
         {/* Conditional Student Name Display */}
-        <div className="flex items-center space-x-3">
+        {/* FIX: Added ml-2 for separation on mobile and flex-shrink-0 to prevent text from being squeezed too much */}
+        <div className="flex items-center space-x-3 ml-2 flex-shrink-0">
           {sessionData.selectedStudent ? (
             <div className="text-sm font-bold text-gray-700 whitespace-nowrap">
               {/* Desktop View: shows "Current Session: Name" */}
@@ -1068,8 +1068,13 @@ const App = () => {
               </div>
             </div>
           ) : (
-            <span className="text-sm font-bold text-gray-500 whitespace-nowrap">
-              No Student Selected
+            // FIX: Structured the "No Student Selected" message into two lines for mobile view
+            <span className="text-sm font-bold text-gray-500 whitespace-nowrap text-right">
+              <span className="hidden sm:inline">No Student Selected</span>
+              <div className="sm:hidden flex flex-col text-xs font-bold text-red-600">
+                <span>No Student</span>
+                <span>Selected</span>
+              </div>
             </span>
           )}
           <button className="text-gray-700 hover:text-indigo-600 transition p-2 rounded-full hover:bg-gray-200">
@@ -1086,7 +1091,7 @@ const App = () => {
         />
       )}
 
-      {/* 💥 FIX: Added h-[80vh] and flex-col to enable scrolling within the card */}
+      {/* FIX: Main Content Card (Simulates Tablet View) - Added h-[80vh] and flex-col for internal scrolling */}
       <div
         className="mt-8 bg-gray-50 max-w-xl mx-auto rounded-3xl shadow-2xl border-4 overflow-hidden h-[80vh] flex flex-col"
         style={{ borderColor: PRIMARY_COLOR }}
