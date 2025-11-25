@@ -3,7 +3,7 @@
 /* eslint-disable react-hooks/static-components */
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Camera,
   CheckCircle,
@@ -11,17 +11,15 @@ import {
   Loader2,
   Zap,
   ArrowLeft,
-  Send,
   Search,
   Settings,
   Users,
-  Star,
+  Star, // New icon for hard skills
+  BookOpen, // New icon for booklet/stickers
 } from "lucide-react";
 
 // --- CUSTOM LOGO COMPONENT ---
-// Replaces the generic icon with the provided SVG path data
 const LogoIcon = ({ className = "h-6 w-6 mr-2 text-black" }) => (
-  // Color is controlled by className (e.g., text-black)
   <svg
     className={className}
     viewBox="0 0 50 50"
@@ -36,7 +34,7 @@ const LogoIcon = ({ className = "h-6 w-6 mr-2 text-black" }) => (
 );
 
 // --- CONSTANTS & DATA ---
-const PRIMARY_COLOR = "rgb(191, 217, 219)"; // R 191 G 217 B 219 (General accent/light border)
+const PRIMARY_COLOR = "rgb(191, 217, 219)"; 
 
 const SCAN_STATE = {
   IDLE: "IDLE",
@@ -45,18 +43,24 @@ const SCAN_STATE = {
   ERROR: "ERROR",
 };
 
+// Constant to define the two camera modes
+const SCAN_MODE = {
+  STICKERS: 'STICKERS',
+  HARD_SKILL: 'HARD_SKILL',
+} as const;
+
 const ERROR_MESSAGES = [
   "Data Integrity Error: Two stickers detected in 'Curiosity' row. Please check page.",
   "Alignment Failure: QR code edges are obscured. Realign booklet and try again.",
   "Data Mismatch: Booklet ID 42 does not match existing session data. Check student name.",
 ];
 
-// PROGRAMS data
+// PROGRAMS data (Unchanged)
 const PROGRAMS = [
   {
     id: "textile",
     name: "Textile",
-    color: "rgb(251, 202, 48)", // R 251 G 202 B 48 (Bright Yellow)
+    color: "rgb(251, 202, 48)",
     imagePath: "/Textile.png",
     workshops: [
       "W1: Intro to Fabric",
@@ -70,7 +74,7 @@ const PROGRAMS = [
   {
     id: "metal",
     name: "Metal Work",
-    color: "rgb(0, 124, 177)", // R 0 G 124 B 177
+    color: "rgb(0, 124, 177)",
     imagePath: "/Metal.png",
     workshops: [
       "W1: Sheet Metal",
@@ -84,7 +88,7 @@ const PROGRAMS = [
   {
     id: "ceramics",
     name: "Ceramics",
-    color: "rgb(2, 131, 81)", // R 2 G 131 B 81
+    color: "rgb(2, 131, 81)",
     imagePath: "/ceramics.png",
     workshops: [
       "W1: Hand Building",
@@ -98,7 +102,7 @@ const PROGRAMS = [
   {
     id: "wood",
     name: "Wood work",
-    color: "rgb(168, 83, 119)", // R 168 G 83 B 119
+    color: "rgb(168, 83, 119)",
     imagePath: "/wood.png",
     workshops: [
       "W1: Intro to Wood",
@@ -112,7 +116,7 @@ const PROGRAMS = [
   {
     id: "fablab",
     name: "FABLAB",
-    color: "rgb(237, 107, 34)", // R 237 G 107 B 34
+    color: "rgb(237, 107, 34)",
     imagePath: "/fablab.png",
     workshops: [
       "W1: 3D Printing",
@@ -125,61 +129,48 @@ const PROGRAMS = [
   },
 ];
 
-// Simulated Student Data for Search functionality and session context
-const STUDENTS_DATA = [
-  {
-    id: "s001",
-    name: "Alina Koster",
-    programId: "metal",
-    programName: "Metal Work",
-  },
-  {
-    id: "s002",
-    name: "Ben Visscher",
-    programId: "fablab",
-    programName: "FABLAB",
-  },
-  {
-    id: "s003",
-    name: "Carla De Vries",
-    programId: "textile",
-    programName: "Textile",
-  },
-  {
-    id: "s004",
-    name: "Dirk Bakker",
-    programId: "wood",
-    programName: "Wood work",
-  },
-  {
-    id: "s005",
-    name: "Elin Jansen",
-    programId: "ceramics",
-    programName: "Ceramics",
-  },
-  {
-    id: "s006",
-    name: "Fleur Wessels",
-    programId: "metal",
-    programName: "Metal Work",
-  },
+// --- STUDENT DATA (Mocked 1-10) ---
+interface Student {
+  id: number;
+  name: string;
+  studentNumber: string;
+  // NEW MOCK FIELDS to indicate recording status
+  bookletRecorded: boolean;
+  hardSkillsRecorded: boolean;
+}
+
+const STUDENTS_DATA: Student[] = [
+  { id: 1, name: "Liam O'Connell", studentNumber: "2024001", bookletRecorded: true, hardSkillsRecorded: false },
+  { id: 2, name: "Emma Wang", studentNumber: "2024002", bookletRecorded: false, hardSkillsRecorded: true },
+  { id: 3, name: "Noah Schmidt", studentNumber: "2024003", bookletRecorded: true, hardSkillsRecorded: true },
+  { id: 4, name: "Olivia Dubois", studentNumber: "2024004", bookletRecorded: false, hardSkillsRecorded: false },
+  { id: 5, name: "William Kim", studentNumber: "2024005", bookletRecorded: true, hardSkillsRecorded: false },
+  { id: 6, name: "Ava Torres", studentNumber: "2024006", bookletRecorded: false, hardSkillsRecorded: true },
+  { id: 7, name: "James Patel", studentNumber: "2024007", bookletRecorded: false, hardSkillsRecorded: false },
+  { id: 8, name: "Isabella Rossi", studentNumber: "2024008", bookletRecorded: false, hardSkillsRecorded: false },
+  { id: 9, name: "Benjamin Chen", studentNumber: "2024009", bookletRecorded: false, hardSkillsRecorded: false },
+  { id: 10, name: "Sophia Miller", studentNumber: "2024010", bookletRecorded: false, hardSkillsRecorded: false },
 ];
 
+// Initial State Mock (Used only for default program/workshop)
 const StudentData = {
   programId: "metal",
   programName: "Metal Work",
   selectedWorkshop: "W2: Bending",
-  reflection:
-    "Learning to bend a really thick piece of sheet metal was hard, but I succeeded after three tries!",
-  stickers: 5,
 };
+
+// Default value for a non-selected student
+const UNSELECTED_STUDENT: Student = {
+    id: 0,
+    name: "N/A",
+    studentNumber: "N/A",
+    bookletRecorded: false,
+    hardSkillsRecorded: false,
+};
+// --- END DATA ---
 
 // --- UTILITY COMPONENTS ---
 
-/**
- * Component to handle and display the live camera stream.
- * It replaces the static placeholder background image.
- */
 const CameraStream = ({
   videoRef,
   onError,
@@ -202,36 +193,27 @@ const CameraStream = ({
       }
 
       try {
-        // 1. Get the stream
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment" },
         });
 
         if (videoElement) {
           videoElement.srcObject = stream;
-
-          // 2. Attempt to play the video, robustly handling the AbortError
           try {
             await videoElement.play();
             setIsCameraActive(true);
             setCameraError(null);
           } catch (e: any) {
-            // Handle the specific 'AbortError' which often happens on fast re-renders/navigation.
-            // We ignore it, as the component's state/navigation is likely causing it,
-            // and the stream usually attaches correctly anyway.
             if (e.name === "AbortError") {
-              console.warn(
-                "Video playback was interrupted by a new load request (AbortError). This is often safe to ignore."
-              );
-              setIsCameraActive(true); // Assume the stream attached even if play was aborted
+              console.warn("Video playback was interrupted by a new load request (AbortError). This is often safe to ignore.");
+              setIsCameraActive(true); 
               setCameraError(null);
             } else {
-              throw e; // Re-throw other errors
+              throw e;
             }
           }
         }
       } catch (err: any) {
-        // 3. Handle general camera access errors
         const errorMsg =
           err.name === "NotAllowedError"
             ? "Camera permission denied. Please allow camera access in your browser settings."
@@ -244,7 +226,6 @@ const CameraStream = ({
 
     startCamera();
 
-    // Cleanup function: Stop the camera stream when the component unmounts
     return () => {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
@@ -252,7 +233,6 @@ const CameraStream = ({
     };
   }, [videoRef, onError]);
 
-  // Render a placeholder or error message if the camera isn't active
   if (cameraError) {
     return (
       <div className="absolute inset-0 bg-red-900 flex items-center justify-center p-4">
@@ -265,7 +245,6 @@ const CameraStream = ({
     );
   }
 
-  // Render the video stream (hidden by default, only the video itself is visible)
   return (
     <video
       ref={videoRef}
@@ -275,13 +254,12 @@ const CameraStream = ({
       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
         isCameraActive ? "opacity-100" : "opacity-0"
       }`}
-      // The background color will show if the stream hasn't started yet
       style={{ backgroundColor: isCameraActive ? "transparent" : "#1f2937" }}
     />
   );
 };
 
-// --- 1. WIZARD CONTROL PANEL (Hidden from User) ---
+// --- WIZARD CONTROL PANEL (Unchanged) ---
 
 interface ControlPanelProps {
   setScanState: React.Dispatch<
@@ -295,9 +273,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   setScanState,
   setErrorMessage,
   navigate,
-  selectedProgram,
 }) => {
   const [errorIndex, setErrorIndex] = useState(0);
+
+  // NOTE: These functions now only change the global state. 
+  // The timer logic for "processing" is now managed within ScanningPage.
 
   const startProcessing = () => {
     navigate("/scan");
@@ -307,7 +287,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const triggerSuccess = () => {
     navigate("/scan");
     setScanState(SCAN_STATE.SUCCESS);
-    // Note: The auto-reset is now handled by the ScanningPage's useEffect
   };
 
   const triggerError = () => {
@@ -385,162 +364,87 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   );
 };
 
-// Screen 1: Program Selector
+// Screen 1: Program Selector (Unchanged)
 interface ProgramSelectorProps {
   navigate: (path: string) => void;
 }
 const ProgramSelector: React.FC<ProgramSelectorProps> = ({ navigate }) => {
-  const [searchTerm, setSearchTerm] = useState("");
-
-  // Filter students based on search term (case-insensitive)
-  const filteredStudents = STUDENTS_DATA.filter((student) =>
-    student.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Select the first result if there is one and the search term is not empty
-  const studentResult =
-    searchTerm.trim() !== "" && filteredStudents.length > 0
-      ? filteredStudents[0]
-      : null;
-
   return (
     <div className="p-6">
       <h2
-        className="text-3xl font-extrabold mb-4 text-gray-900 border-b-2 pb-2"
+        className="text-3xl font-extrabold mb-8 text-gray-900 border-b-2 pb-2"
         style={{ borderColor: PRIMARY_COLOR }}
       >
-        Select Workshop / Find Student
+        Select Workshop Program
       </h2>
-
-      {/* Student Search Input */}
-      <div className="relative mb-8">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by student name (e.g., Alina, Ben)"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full p-3 pl-10 border-2 border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 shadow-md"
-        />
-      </div>
-
-      {/* Conditional Content based on Search */}
-      {studentResult ? (
-        // 1. Student Found Result Card
-        <div
-          className="p-6 rounded-2xl shadow-xl border-4 cursor-pointer transition transform hover:scale-[1.01]"
-          style={{
-            borderColor: PRIMARY_COLOR,
-            backgroundColor: "#f7f7f7",
-          }}
-          onClick={() => navigate(`/workshop/${studentResult.programId}`)}
-        >
-          <div className="flex items-center mb-4">
-            <Users className="h-8 w-8 text-indigo-600 mr-3" />
-            <h3 className="text-2xl font-bold text-gray-800">
-              {studentResult.name}
-            </h3>
-          </div>
-          <p className="text-lg text-gray-700 mb-4">
-            Current Program:{" "}
-            <strong className="text-indigo-600">
-              {studentResult.programName}
-            </strong>
-          </p>
-          <button className="w-full p-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center">
-            <Star className="h-5 w-5 mr-2 fill-white" /> Go to{" "}
-            {studentResult.programName} Workshops
-          </button>
-          <p className="text-sm text-center text-gray-500 mt-3">
-            Clicking this will automatically select their program.
-          </p>
-        </div>
-      ) : searchTerm.trim() !== "" && filteredStudents.length === 0 ? (
-        // 2. No Student Found Message
-        <div className="p-6 text-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 mb-8">
-          <XCircle className="h-8 w-8 text-red-500 mx-auto mb-3" />
-          <p className="text-xl font-semibold text-red-700">No Student Found</p>
-          <p className="text-gray-600 mt-1">
-            Please check the spelling or select a program below.
-          </p>
-        </div>
-      ) : (
-        // 3. Program Tiles (Default View)
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-          {PROGRAMS.map((program) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+        {PROGRAMS.map((program) => (
+          <div
+            key={program.id}
+            onClick={() => navigate(`/workshop/${program.id}`)}
+            className="group cursor-pointer transform hover:scale-[1.03] transition-all duration-300"
+          >
             <div
-              key={program.id}
-              onClick={() => navigate(`/workshop/${program.id}`)}
-              className="group cursor-pointer transform hover:scale-[1.03] transition-all duration-300"
-            >
-              {/* Image Tile (Border color is specific to the program) */}
-              <div
-                style={{
-                  backgroundImage: `url(${program.imagePath})`,
-                  borderColor: program.color,
-                  borderWidth: "3px",
-                }}
-                className={`
+              style={{
+                backgroundImage: `url(${program.imagePath})`,
+                borderColor: program.color,
+                borderWidth: "3px",
+              }}
+              className={`
                                     relative h-32 sm:h-36 rounded-xl shadow-xl 
                                     bg-cover bg-center overflow-hidden border-2 border-transparent 
                                     group-hover:shadow-2xl group-hover:shadow-gray-300 transition
                                 `}
-              >
-                {/* Subtle overlay for image consistency */}
-                <div className="absolute inset-0 bg-black opacity-10 group-hover:opacity-20 transition duration-300 rounded-xl"></div>
-              </div>
-              {/* Program Name UNDER the tile */}
-              <p className="mt-2 text-center text-lg font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">
-                {program.name}
-              </p>
+            >
+              <div className="absolute inset-0 bg-black opacity-10 group-hover:opacity-20 transition duration-300 rounded-xl"></div>
             </div>
-          ))}
-        </div>
-      )}
+            <p className="mt-2 text-center text-lg font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">
+              {program.name}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 
-// Screen 2: Workshop Detail & Reflection Input
+// Screen 2: Workshop Detail & Description View
 interface WorkshopDetailProps {
   navigate: (path: string) => void;
   programId?: string;
+  setWorkshopData: (workshopName: string) => void;
+  selectedWorkshop: string;
 }
 const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
   navigate,
   programId,
+  setWorkshopData,
+  selectedWorkshop,
 }) => {
-  // Lookup the program based on ID, defaulting to the first if not found (robustness)
   const program = PROGRAMS.find((p) => p.id === programId) || PROGRAMS[0];
-
-  const [reflectionText, setReflectionText] = useState(StudentData.reflection);
-  const [isInputOpen, setIsInputOpen] = useState(false);
-
-  // Set the selected workshop based on the context (defaulting to the first workshop if the program is different)
-  const defaultWorkshop =
-    program.id === StudentData.programId
-      ? StudentData.selectedWorkshop
-      : program.workshops[0];
-  const [selectedWorkshop, setSelectedWorkshop] = useState(defaultWorkshop);
+  
+  const [localSelectedWorkshop, setLocalSelectedWorkshop] = useState(selectedWorkshop);
 
   const workshopColor = program.color;
 
-  // --- ACCESSIBILITY FIX START ---
-  // Check if the current program is 'textile' (bright yellow background)
   const isTextile = program.id === "textile";
-
-  // Set text colors dynamically for contrast
   const selectedTextColorClass = isTextile ? "text-gray-900" : "text-white";
   const selectedSubtextColorClass = isTextile
     ? "text-gray-800"
     : "text-white/90";
-
-  // Set reflection box overlay dynamically for contrast
   const reflectionBoxOverlayClass = isTextile
     ? "bg-black/10 border-black/30"
     : "bg-white/30 border-white/50 backdrop-blur-sm";
   const reflectionTextColorClass = isTextile ? "text-gray-900" : "text-white";
-  // --- ACCESSIBILITY FIX END ---
+
+  useEffect(() => {
+    setWorkshopData(localSelectedWorkshop);
+  }, [localSelectedWorkshop, setWorkshopData]);
+  
+  const handleNext = () => {
+    setWorkshopData(localSelectedWorkshop);
+    navigate(`/student-select`);
+  };
 
   return (
     <div className="p-6 h-full relative">
@@ -555,7 +459,7 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
         {program.name}
       </h1>
       <p className="text-gray-600 mb-8 font-medium">
-        Select the workshop to scan the sticker page.
+        Select the workshop to proceed to student selection.
       </p>
 
       {/* List of Workshops */}
@@ -565,24 +469,21 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
             key={workshop}
             className={`p-4 rounded-xl border-4 transition-all duration-150 cursor-pointer 
                             ${
-                              workshop === selectedWorkshop
-                                ? // Apply the dynamic text color class when selected
-                                  selectedTextColorClass +
+                              workshop === localSelectedWorkshop
+                                ? selectedTextColorClass +
                                   " shadow-xl scale-[1.01]"
                                 : "bg-white border-gray-100 shadow-md hover:shadow-lg hover:border-gray-300"
                             }`}
-            // Apply specific program color to background and border for selected state
             style={
-              workshop === selectedWorkshop
+              workshop === localSelectedWorkshop
                 ? { backgroundColor: workshopColor, borderColor: workshopColor }
                 : {}
             }
-            onClick={() => setSelectedWorkshop(workshop)}
+            onClick={() => setLocalSelectedWorkshop(workshop)}
           >
-            {/* Use dynamic classes for text color */}
             <h3
               className={`text-xl font-bold ${
-                workshop === selectedWorkshop
+                workshop === localSelectedWorkshop
                   ? selectedTextColorClass
                   : "text-gray-800"
               }`}
@@ -591,32 +492,27 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
             </h3>
             <p
               className={`text-sm mt-1 ${
-                workshop === selectedWorkshop
+                workshop === localSelectedWorkshop
                   ? selectedSubtextColorClass
                   : "text-gray-600"
               }`}
             >
-              {index === 1 && workshop === selectedWorkshop
-                ? "Description: Detailed instructions for this workshop are included here."
+              {index === 1 && workshop === localSelectedWorkshop
+                ? "Detailed instructions for this workshop are included here."
                 : "Tap to select this workshop."}
             </p>
-            {workshop === selectedWorkshop && (
-              // Use dynamic class for reflection box overlay and text
+            {/* Workshop Description */}
+            {workshop === localSelectedWorkshop && (
               <div
                 className={`mt-3 p-3 ${reflectionBoxOverlayClass} rounded-lg border shadow-inner`}
               >
                 <p className={`font-semibold ${reflectionTextColorClass} mb-2`}>
-                  Student Reflection:
+                  Workshop Description:
                 </p>
-                <div
-                  className="bg-white text-gray-900 p-3 rounded-lg cursor-pointer shadow-md min-h-[50px] transition hover:bg-gray-50"
-                  onClick={() => setIsInputOpen(true)}
-                >
-                  {reflectionText || (
-                    <span className="text-gray-400 italic">
-                      Tap to add reflection...
-                    </span>
-                  )}
+                <div className="bg-white text-gray-900 p-3 rounded-lg shadow-inner min-h-[50px]">
+                  <span className="text-gray-700 italic">
+                    This workshop focuses on the fundamental {program.name.toLowerCase()} skill of {workshop.split(':')[1]?.trim() || "basic assembly"}.
+                  </span>
                 </div>
               </div>
             )}
@@ -624,50 +520,160 @@ const WorkshopDetail: React.FC<WorkshopDetailProps> = ({
         ))}
       </div>
 
-      {/* Primary Action Button (Scan) */}
+      {/* Primary Action Button (NEXT) */}
       <button
-        onClick={() => navigate("/scan")}
-        disabled={!selectedWorkshop}
-        // Retaining Indigo for the main action button for high contrast
+        onClick={handleNext}
+        disabled={!localSelectedWorkshop}
         className={`w-full mt-8 p-4 text-white font-black text-xl rounded-xl transition-all ${
-          selectedWorkshop
+          localSelectedWorkshop
             ? "bg-indigo-600 hover:bg-indigo-700 shadow-2xl shadow-indigo-500/70 transform hover:scale-[1.01] uppercase"
             : "bg-gray-400 cursor-not-allowed shadow-none"
         }`}
       >
-        <Camera className="inline-block h-6 w-6 mr-3" /> Start Sticker Scan
+        <ArrowLeft className="inline-block h-6 w-6 mr-3 transform rotate-180" /> NEXT: Select Student
       </button>
 
-      {/* Reflection Input Modal/Popup */}
-      {isInputOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fade-in">
-          <div
-            className="bg-white p-6 rounded-2xl w-full max-w-lg mx-4 shadow-2xl border-t-8"
-            style={{ borderColor: PRIMARY_COLOR }}
-          >
-            <h4 className="text-2xl font-bold mb-3 text-gray-800">
-              Add Reflection for &quot;{selectedWorkshop}&quot;
-            </h4>
-            <textarea
-              value={reflectionText}
-              onChange={(e) => setReflectionText(e.target.value)}
-              className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 resize-none h-32 text-gray-700"
-              placeholder="e.g., Bending thick metal was challenging, but I succeeded after three attempts!"
-            />
-            <button
-              onClick={() => setIsInputOpen(false)}
-              className="w-full mt-4 p-3 bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-600 transition flex items-center justify-center shadow-lg shadow-indigo-500/50"
-            >
-              <Send className="h-5 w-5 mr-2" /> Save
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-// Screen 3: Scanning Page (WOZ Core)
+// --- SCREEN 3: Student Selector ---
+
+interface StudentSelectorProps {
+  navigate: (path: string) => void;
+  selectedWorkshop: string;
+  setStudentData: (student: Student) => void;
+  programId: string;
+}
+
+const StudentSelector: React.FC<StudentSelectorProps> = ({
+  navigate,
+  selectedWorkshop,
+  setStudentData,
+  programId,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredStudents = useMemo(() => {
+    // Only search the mocked data since we have no real API
+    if (searchTerm.length < 2) return STUDENTS_DATA; 
+
+    const lowerCaseTerm = searchTerm.toLowerCase();
+
+    return STUDENTS_DATA.filter(
+      (student) =>
+        student.name.toLowerCase().includes(lowerCaseTerm) ||
+        student.studentNumber.includes(lowerCaseTerm)
+    );
+  }, [searchTerm]);
+  
+  const handleStudentSelect = (student: Student) => {
+    setStudentData(student);
+    navigate("/scan");
+  };
+
+  return (
+    <div className="p-6">
+      <button
+        onClick={() => navigate(`/workshop/${programId}`)}
+        className="flex items-center text-gray-700 mb-6 hover:text-indigo-600 transition text-md font-bold"
+      >
+        <ArrowLeft className="h-5 w-5 mr-1" /> Back to Workshop
+      </button>
+
+      <h2
+        className="text-3xl font-extrabold mb-2 text-gray-900 flex items-center"
+      >
+        <Users className="h-7 w-7 mr-2 text-indigo-600" /> Select Student
+      </h2>
+      <p className="text-gray-600 mb-6 font-medium">
+        Scan Sticker for: **{selectedWorkshop}**
+      </p>
+
+      {/* Search Input */}
+      <div className="relative mb-6">
+        <input
+          type="text"
+          placeholder="Search by Name or Student Number..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full p-4 pl-12 border-2 border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 transition shadow-md text-gray-900"
+        />
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+      </div>
+
+      {/* Results Display */}
+      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
+        {searchTerm.length < 2 && (
+          <p className="text-gray-500 italic text-center py-8">
+            Start typing (min. 2 characters) or view the full list below.
+          </p>
+        )}
+        {searchTerm.length >= 2 && filteredStudents.length === 0 && (
+          <div className="text-center py-8 p-4 bg-red-50 rounded-xl border border-red-200">
+            <XCircle className="h-6 w-6 text-red-500 mx-auto mb-2" />
+            <p className="text-red-700 font-bold">No Student Found</p>
+            <p className="text-sm text-red-600 mt-1">
+              Check the spelling or student number and try again.
+            </p>
+          </div>
+        )}
+        {(filteredStudents.length > 0 || searchTerm.length < 2) && (
+          <ul className="divide-y divide-gray-200 border border-gray-200 rounded-xl overflow-hidden shadow-lg">
+            {filteredStudents.map((student) => (
+              <li
+                key={student.id}
+                className="flex justify-between items-center p-4 bg-white hover:bg-indigo-50 transition duration-150"
+              >
+                {/* Student Name and Number */}
+                <div className="flex-grow"> 
+                  <p className="text-lg font-bold text-gray-800">
+                    {student.name}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    # {student.studentNumber}
+                  </p>
+                </div>
+                
+                {/* --- RECORDING STATUS IDENTIFIERS --- */}
+                <div className="flex items-center space-x-4 mr-4 flex-shrink-0">
+                  {/* Booklet Status (Stickers) */}
+                  <div title={student.bookletRecorded ? "Booklet Recorded" : "Booklet Pending"} className="flex flex-col items-center cursor-pointer">
+                    <BookOpen className={`h-6 w-6 ${student.bookletRecorded ? 'text-green-600' : 'text-gray-400'}`} />
+                    <span className={`text-xs mt-1 ${student.bookletRecorded ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
+                        Stickers
+                    </span>
+                  </div>
+                  
+                  {/* Hard Skills Status */}
+                  <div title={student.hardSkillsRecorded ? "Hard Skill Recorded" : "Hard Skill Pending"} className="flex flex-col items-center cursor-pointer">
+                    <Star className={`h-6 w-6 ${student.hardSkillsRecorded ? 'text-yellow-600' : 'text-gray-400'}`} />
+                    <span className={`text-xs mt-1 ${student.hardSkillsRecorded ? 'text-yellow-700 font-bold' : 'text-gray-500'}`}>
+                        Skill
+                    </span>
+                  </div>
+                </div>
+                {/* --- END RECORDING STATUS IDENTIFIERS --- */}
+                
+                {/* Action Button */}
+                <button
+                  onClick={() => handleStudentSelect(student)}
+                  className="flex items-center p-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition shadow-md flex-shrink-0" 
+                >
+                  <Camera className="h-5 w-5 mr-2" />
+                  Go to Camera
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// Screen 4: Scanning Page (No changes here)
 interface ScanningPageProps {
   scanState: (typeof SCAN_STATE)[keyof typeof SCAN_STATE];
   errorMessage: string;
@@ -675,7 +681,8 @@ interface ScanningPageProps {
     newState: (typeof SCAN_STATE)[keyof typeof SCAN_STATE]
   ) => void;
   navigate: (path: string) => void;
-  programId: string;
+  selectedStudent: Student;
+  selectedWorkshop: string; // New prop
 }
 
 const ScanningPage: React.FC<ScanningPageProps> = ({
@@ -683,56 +690,90 @@ const ScanningPage: React.FC<ScanningPageProps> = ({
   errorMessage,
   handleAction,
   navigate,
-  programId,
+  selectedStudent,
+  selectedWorkshop, // Use new prop
 }) => {
   const [showPopup, setShowPopup] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState("");
+  const [scanMode, setScanMode] = useState<keyof typeof SCAN_MODE>(SCAN_MODE.STICKERS); // New state
+  const timerRef = useRef<number | undefined>(undefined); // To manage the processing timer
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Function to handle camera stream errors
   const handleCameraError = useCallback((message: string) => {
     setCameraPermissionError(message);
-    // Optional: You could transition scanState to ERROR here if the camera is critical
-    // e.g., if (scanState === SCAN_STATE.IDLE) setScanState(SCAN_STATE.ERROR);
   }, []);
+  
+  // Function to start a scan based on mode
+  const startScan = useCallback((mode: keyof typeof SCAN_MODE) => {
+    if (scanState === SCAN_STATE.PROCESSING) return;
 
+    setScanMode(mode);
+    setCameraPermissionError(""); // Clear camera error when starting a new scan attempt
+    handleAction(SCAN_STATE.PROCESSING); // Start processing state
+
+    // Set duration to 5000ms (5 seconds) for both modes.
+    const duration = 5000; 
+    
+    // Auto-resolve to success after delay
+    if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+    }
+    // The timeout is set here to transition to success
+    timerRef.current = window.setTimeout(() => {
+        handleAction(SCAN_STATE.SUCCESS);
+        timerRef.current = undefined;
+    }, duration);
+  }, [handleAction, scanState]);
+
+
+  // Effect for handling popups and navigation (runs on state change)
   useEffect(() => {
     let showTimer: number | undefined;
-    let navTimer: number | undefined;
 
     if (scanState === SCAN_STATE.SUCCESS || scanState === SCAN_STATE.ERROR) {
-      // schedule showPopup asynchronously to avoid synchronous setState in effect body
+      // Show popup immediately after state change
       showTimer = window.setTimeout(() => setShowPopup(true), 0);
-
-      if (scanState === SCAN_STATE.SUCCESS) {
-        navTimer = window.setTimeout(() => navigate("/"), 2500);
-      }
+      
+      // No automatic navigation after success
+      
     } else {
-      // hide popup asynchronously as well
       showTimer = window.setTimeout(() => setShowPopup(false), 0);
     }
-
+    
     return () => {
       if (showTimer) window.clearTimeout(showTimer);
-      if (navTimer) window.clearTimeout(navTimer);
     };
-  }, [scanState, navigate]);
+  }, [scanState, navigate, scanMode]); 
+  
+  // Effect to only clear the processing timer when the component unmounts.
+  useEffect(() => {
+      return () => {
+          if (timerRef.current) {
+              window.clearTimeout(timerRef.current);
+              timerRef.current = undefined;
+          }
+      };
+  }, []);
+
 
   let overlayContent = null;
   let boundingBoxColor = "border-white";
   let boundingBoxText = "Align Booklet Here";
 
   if (scanState === SCAN_STATE.PROCESSING) {
-    boundingBoxColor = "border-indigo-400 animate-pulse";
-    boundingBoxText = "Processing Data... Hold Still";
+    boundingBoxColor = scanMode === SCAN_MODE.STICKERS ? "border-indigo-400 animate-pulse" : "border-transparent";
+    boundingBoxText = scanMode === SCAN_MODE.STICKERS ? "Processing Data... Hold Still" : "Recording Skill...";
+    
+    // Update processing content to reflect 5-second buffer.
     overlayContent = (
       <div className="flex flex-col items-center p-6 bg-black bg-opacity-70 rounded-xl shadow-2xl">
         <Loader2 className="animate-spin text-indigo-400 h-10 w-10 mb-4" />
         <p className="text-white font-semibold text-lg">
-          Analyzing Sticker Positions (4/5)
+          {scanMode === SCAN_MODE.STICKERS ? "Analyzing Booklet Data (5 sec)" : "Capturing Photo and Sending to Dashboard (5 sec)"}
         </p>
         <p className="text-sm text-gray-300 mt-1">
-          Simulating complex image processing...
+          Please wait for processing to complete.
         </p>
       </div>
     );
@@ -740,87 +781,120 @@ const ScanningPage: React.FC<ScanningPageProps> = ({
     boundingBoxColor = "border-white";
   }
 
-  // Handler for going back to the Workshop Detail page
-  const handleBack = () => {
-    // Navigate back to the workshop detail page using the current programId
-    navigate(`/workshop/${programId}`);
-  };
+  // Refactored Bounding Box Component
+  const BoundingBox = () => {
+    const showBoundingBox = scanMode === SCAN_MODE.STICKERS;
 
-  // Bounding Box (Visible in IDLE/PROCESSING)
-  const BoundingBox = () => (
-    // Outer div maintains position over the camera feed
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      {/* Inner div defines the scan area and border */}
-      <div className="relative w-4/5 h-4/5 max-w-lg max-h-lg flex flex-col items-center justify-center pointer-events-auto">
-        <div
-          className={`w-full h-full border-4 ${boundingBoxColor} rounded-xl transition-all duration-500 flex items-center justify-center`}
-        >
-          {/* Content inside the bounding box */}
-          {scanState === SCAN_STATE.IDLE && (
-            <button
-              onClick={() => handleAction(SCAN_STATE.PROCESSING)}
-              className="p-4 text-gray-900 font-black text-xl rounded-full shadow-2xl hover:bg-white/90 transition flex items-center transform hover:scale-105 pointer-events-auto"
-              style={{
-                backgroundColor: PRIMARY_COLOR,
-                boxShadow: `0 10px 15px -3px ${PRIMARY_COLOR}80`,
-              }}
-              disabled={!!cameraPermissionError}
-            >
-              <Camera className="mr-2 h-6 w-6" />
-              {cameraPermissionError ? "Camera Blocked" : "Tap to Scan"}
-            </button>
-          )}
-          {scanState === SCAN_STATE.PROCESSING && overlayContent}
+    return (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* Student Info Bar on top of the camera view (always visible) */}
+            <div className="absolute top-[-4.5rem] p-3 bg-black/60 backdrop-blur-sm rounded-xl text-white text-center shadow-lg">
+                <p className="text-xl font-bold">{selectedStudent.name}</p>
+                <p className="text-sm text-gray-300">ID: {selectedStudent.studentNumber}</p>
+            </div>
+            
+            {(showBoundingBox || scanState === SCAN_STATE.PROCESSING) && (
+                <div className={`relative w-4/5 ${showBoundingBox ? 'h-4/5 max-w-lg max-h-lg' : 'max-w-md'} flex flex-col items-center justify-center pointer-events-auto`}>
+                    {/* The square boundary */}
+                    {showBoundingBox && (
+                        <div
+                            className={`w-full h-full border-4 ${boundingBoxColor} rounded-xl transition-all duration-500 flex items-center justify-center`}
+                        >
+                            {/* Content inside the bounding box (only processing overlay for STICKERS mode) */}
+                            {scanState === SCAN_STATE.PROCESSING && overlayContent}
+                        </div>
+                    )}
+
+                    {/* Content without bounding box (for HARD_SKILL processing) */}
+                    {!showBoundingBox && scanState === SCAN_STATE.PROCESSING && overlayContent}
+                    
+                    {/* Alignment text (only for STICKERS mode) */}
+                    {showBoundingBox && (
+                        <p className="mt-4 text-white text-xl font-black drop-shadow-lg p-2 bg-black bg-opacity-50 rounded-lg">
+                            {boundingBoxText}
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
-
-        <p className="mt-4 text-white text-xl font-black drop-shadow-lg p-2 bg-black bg-opacity-50 rounded-lg">
-          {boundingBoxText}
-        </p>
-      </div>
-    </div>
-  );
+    );
+  };
+  
 
   return (
     <div className="relative w-full h-full min-h-[500px] flex items-center justify-center bg-gray-900 rounded-3xl overflow-hidden shadow-2xl">
-      {/* 1. Background (Live Camera Feed) */}
       <CameraStream videoRef={videoRef} onError={handleCameraError} />
 
-      {/* 2. Back Button (Only visible when IDLE) */}
+      {/* Back Button (Only visible when IDLE) - now goes to select student */}
       {scanState === SCAN_STATE.IDLE && (
         <button
-          onClick={handleBack}
+          onClick={() => navigate(`/student-select`)}
           className="absolute top-4 left-4 p-3 bg-black/50 text-white rounded-full hover:bg-black/70 transition-all z-10 flex items-center shadow-lg"
-          aria-label="Go back to workshop details"
+          aria-label="Go back to student selector"
         >
           <ArrowLeft className="h-5 w-5 mr-1" />
         </button>
       )}
-
-      {/* 3. Bounding Box and Scan Button Overlay */}
+      
+      {/* Action Buttons (Centered and Stacked - Scan/Record) */}
+      {scanState === SCAN_STATE.IDLE && !cameraPermissionError && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col space-y-6 z-10">
+          {/* Tap to Scan Stickers */}
+          <button
+            onClick={() => startScan(SCAN_MODE.STICKERS)}
+            className="p-5 text-gray-900 font-black text-xl rounded-xl shadow-2xl hover:bg-white/90 transition flex items-center justify-center transform hover:scale-[1.03] pointer-events-auto min-w-[300px]"
+            style={{
+              backgroundColor: PRIMARY_COLOR,
+              boxShadow: `0 10px 15px -3px ${PRIMARY_COLOR}80`,
+            }}
+            disabled={!!cameraPermissionError}
+          >
+            <Camera className="mr-2 h-6 w-6" />
+            Scan Stickers
+          </button>
+    
+          {/* Record Hard Skills */}
+          <button
+            onClick={() => startScan(SCAN_MODE.HARD_SKILL)}
+            className="p-5 text-white font-black text-xl rounded-xl shadow-2xl transition flex items-center justify-center transform hover:scale-[1.03] pointer-events-auto bg-indigo-600 hover:bg-indigo-700 min-w-[300px]"
+            style={{
+              boxShadow: `0 10px 15px -3px rgba(99, 102, 241, 0.5)`,
+            }}
+            disabled={!!cameraPermissionError}
+          >
+            <Star className="mr-2 h-6 w-6" />
+            Record Hard Skills
+          </button>
+        </div>
+      )}
+      
+      {/* Bounding Box and Scan Button Overlay */}
       {scanState !== SCAN_STATE.SUCCESS && scanState !== SCAN_STATE.ERROR && (
         <BoundingBox />
       )}
 
-      {/* 4. SUCCESS POPUP (High-Fi version) */}
+      {/* SUCCESS POPUP (Updated to stay on camera page) */}
       {scanState === SCAN_STATE.SUCCESS && showPopup && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-md bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-green-500 text-center animate-fade-in z-20">
           <CheckCircle className="text-green-500 h-16 w-16 mx-auto mb-4 animate-bounce-once" />
           <h1 className="text-2xl font-extrabold text-gray-800 mb-2">
-            Scan Complete!
+            {scanMode === SCAN_MODE.STICKERS ? "Scan Complete - SUCCESS!" : "Hard Skill Recorded - SUCCESS!"}
           </h1>
           <p className="text-gray-600">
-            The reflection and stickers have been saved and synchronized.
+            {scanMode === SCAN_MODE.STICKERS
+              ? `The sticker data for **${selectedStudent.name}** has been saved.`
+              : `**${selectedStudent.name}**'s skill from **${selectedWorkshop}** was sent to the dashboard.`}
           </p>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => handleAction(SCAN_STATE.IDLE)} // Action to return to IDLE state on the camera page
             className="mt-6 p-3 bg-green-600 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition w-full shadow-green-500/40"
           >
-            Done / Back to Workshop
+            Done
           </button>
         </div>
       )}
 
-      {/* 5. ERROR POPUP (High-Fi version) */}
+      {/* ERROR POPUP (Unchanged) */}
       {scanState === SCAN_STATE.ERROR && showPopup && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-md bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-red-500 text-center animate-fade-in z-20">
           <XCircle className="text-red-500 h-16 w-16 mx-auto mb-4" />
@@ -832,13 +906,13 @@ const ScanningPage: React.FC<ScanningPageProps> = ({
           </p>
           <div className="flex flex-col space-y-3">
             <button
-              onClick={() => handleAction(SCAN_STATE.PROCESSING)} // User tries again
+              onClick={() => startScan(scanMode)} // Rescan using the current mode
               className="p-3 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700 transition shadow-red-500/40"
             >
               RESCAN (Check & Correct)
             </button>
             <button
-              onClick={() => handleAction(SCAN_STATE.SUCCESS)} // User chooses manual override
+              onClick={() => handleAction(SCAN_STATE.SUCCESS)}
               className="p-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition text-sm mt-2"
             >
               Manual Override / Proceed Anyway
@@ -857,28 +931,39 @@ const App = () => {
   const [errorMessage, setErrorMessage] = useState(ERROR_MESSAGES[0]);
   const [isWizardMode, setIsWizardMode] = useState(false);
   const [currentPath, setCurrentPath] = useState("/");
-  const [programId, setProgramId] = useState(StudentData.programId);
+  
+  const [sessionData, setSessionData] = useState({
+    programId: StudentData.programId,
+    selectedWorkshop: StudentData.selectedWorkshop,
+    selectedStudent: null as Student | null, 
+  });
 
   const navigate = useCallback((path: string) => {
     setCurrentPath(path);
     const parts = path.split("/");
     if (parts[1] === "workshop" && parts[2]) {
-      setProgramId(parts[2]);
+      setSessionData(prev => ({ ...prev, programId: parts[2] }));
     }
   }, []);
+  
+  const setWorkshopData = useCallback((workshopName: string) => {
+    setSessionData(prev => ({ ...prev, selectedWorkshop: workshopName }));
+  }, []);
 
+  const setStudentData = useCallback((student: Student) => {
+    setSessionData(prev => ({ ...prev, selectedStudent: student }));
+  }, []);
+  
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "wizard") {
       setIsWizardMode(true);
     }
-    // Set initial path based on URL, if deep linked
     if (window.location.hash) {
       setCurrentPath(window.location.hash.substring(1));
     }
   }, []);
 
-  // Update browser hash to support simple back/forward navigation within the single-page app structure
   useEffect(() => {
     window.location.hash = currentPath;
   }, [currentPath]);
@@ -886,27 +971,13 @@ const App = () => {
   type ScanStateKey = (typeof SCAN_STATE)[keyof typeof SCAN_STATE];
 
   interface HandleUserAction {
-    (newState: ScanStateKey): void | (() => void);
+    (newState: ScanStateKey): void;
   }
-
+  
+  // This is simplified to only set the state, as the timer logic is now in ScanningPage
   const handleUserAction = useCallback<HandleUserAction>(
-    (newState: ScanStateKey) => {
-      if (newState === SCAN_STATE.PROCESSING) {
-        setScanState(SCAN_STATE.PROCESSING);
-
-        // Simulate the scan process taking 4 seconds
-        const timer: number = window.setTimeout(() => {
-          setScanState((currentState) =>
-            // Only transition to SUCCESS if we are still processing (not manually errored/succeeded)
-            currentState === SCAN_STATE.PROCESSING
-              ? SCAN_STATE.SUCCESS
-              : currentState
-          );
-        }, 4000);
-        return () => clearTimeout(timer);
-      } else if (newState === SCAN_STATE.SUCCESS) {
-        setScanState(SCAN_STATE.SUCCESS);
-      }
+    (newState: ScanStateKey) => { 
+      setScanState(newState); 
     },
     []
   );
@@ -920,19 +991,31 @@ const App = () => {
       content = (
         <WorkshopDetail
           navigate={navigate}
-          programId={pathParts[2] || programId}
+          programId={pathParts[2] || sessionData.programId}
+          setWorkshopData={setWorkshopData}
+          selectedWorkshop={sessionData.selectedWorkshop}
+        />
+      );
+      break;
+    case "student-select":
+      content = (
+        <StudentSelector
+          navigate={navigate}
+          selectedWorkshop={sessionData.selectedWorkshop}
+          setStudentData={setStudentData}
+          programId={sessionData.programId}
         />
       );
       break;
     case "scan":
-      // Pass the current programId to the ScanningPage component
       content = (
         <ScanningPage
           scanState={scanState}
           errorMessage={errorMessage}
           handleAction={handleUserAction}
           navigate={navigate}
-          programId={programId}
+          selectedStudent={sessionData.selectedStudent || UNSELECTED_STUDENT} 
+          selectedWorkshop={sessionData.selectedWorkshop} // Pass workshop name
         />
       );
       break;
@@ -954,10 +1037,33 @@ const App = () => {
           <span className="hidden sm:inline">BOUWKEET TRACKER</span>
           <span className="sm:hidden">TRACKER</span>
         </h1>
+        {/* Conditional Student Name Display */}
         <div className="flex items-center space-x-3">
-          <span className="text-sm font-bold text-gray-700 whitespace-nowrap">
-            Student ID: 42
-          </span>
+          {sessionData.selectedStudent ? (
+            <div className="text-sm font-bold text-gray-700 whitespace-nowrap">
+              {/* Desktop View: shows "Current Session: Name" */}
+              <span className="hidden sm:inline">
+                Current Session:{" "}
+                <span className="font-extrabold text-gray-900 ml-0">
+                  {sessionData.selectedStudent.name}
+                </span>
+              </span>
+
+              {/* Mobile View: shows Name and Number, stacked and right-aligned */}
+              <div className="sm:hidden flex flex-col text-right -space-y-1">
+                <span className="font-extrabold text-gray-900 text-sm">
+                  {sessionData.selectedStudent.name}
+                </span>
+                <span className="text-xs font-medium text-gray-500">
+                  #{sessionData.selectedStudent.studentNumber}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <span className="text-sm font-bold text-gray-500 whitespace-nowrap">
+              No Student Selected
+            </span>
+          )}
           <button className="text-gray-700 hover:text-indigo-600 transition p-2 rounded-full hover:bg-gray-200">
             <Settings className="h-5 w-5" />
           </button>
@@ -969,17 +1075,30 @@ const App = () => {
           setScanState={setScanState}
           setErrorMessage={setErrorMessage}
           navigate={navigate}
-          selectedProgram={StudentData.programName}
+          selectedProgram={sessionData.programId}
         />
       )}
 
-      {/* Main Content Card (Simulates Tablet View) - Uses custom primary color for border */}
+      {/* Main Content Card (Simulates Tablet View) */}
       <div
         className="mt-8 bg-gray-50 max-w-xl mx-auto rounded-3xl shadow-2xl border-4 overflow-hidden"
         style={{ borderColor: PRIMARY_COLOR }}
       >
         {content}
       </div>
+
+      {/* Select New Student Button (outside the camera display) */}
+      {currentPath === "/scan" && scanState === SCAN_STATE.IDLE && (
+        <div className="max-w-xl mx-auto mt-4 text-center">
+          <button
+            onClick={() => navigate(`/student-select`)}
+            className="p-4 bg-indigo-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center w-full"
+            aria-label="Select a different student"
+          >
+            <Users className="h-6 w-6 mr-2" /> Select New Student
+          </button>
+        </div>
+      )}
 
       <footer className="mt-10 text-center text-sm text-gray-500">
         <p className="mb-2">
