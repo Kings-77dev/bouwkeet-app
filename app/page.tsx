@@ -363,7 +363,7 @@ interface ProgramSelectorProps {
 }
 const ProgramSelector: React.FC<ProgramSelectorProps> = ({ navigate }) => {
   return (
-    <div className="p-6">
+    <div className="p-6 overflow-y-auto">
       <h2
         className="text-3xl font-extrabold mb-8 text-gray-900 border-b-2 pb-2"
         style={{ borderColor: PRIMARY_COLOR }}
